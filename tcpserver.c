@@ -61,6 +61,8 @@ void setup_tcp_server_communication() {
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 	
 	addr_len = sizeof(struct sockaddr);
+	
+	if(bind(master_sock_tcp_fd, (struct sockaddr *)
 }
 
 
