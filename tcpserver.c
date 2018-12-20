@@ -49,7 +49,7 @@ void setup_tcp_server_communication() {
 	struct sockaddr_in server_addr,
 					   client_addr;
 					   
-	if ((master_sock_tcp_fd = socket(AF_NET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	if ((master_sock_tcp_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
 		printf("Socket creation failed\n");
 		exit(1);
@@ -62,7 +62,78 @@ void setup_tcp_server_communication() {
 	
 	addr_len = sizeof(struct sockaddr);
 	
-	if(bind(master_sock_tcp_fd, (struct sockaddr *)
+	if(bind(master_sock_tcp_fd, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) == -1)
+	{
+		printf("Socket bind failed\n");
+		return;
+	}
+	
+	if(listen(master_sock_tcp_fd, 5) < 0)
+	{
+		printf("listen failed\n");
+		return;
+	}
+	
+	while(1) {
+		FD_ZERO(&readfds);
+		FD_SET(master_sock_tcp_fd, &readfds);
+		
+		printf("blocked on select system call....");
+		
+		select(master_sock_tcp_fd + 1, &readfds, NULL, NULL, NULL);
+		
+		if(FD_ISSET(master_sock_tcp_fd, &readfds))
+		{
+			printf("New connection received , accept the connection. Client and Server completes TCP 3 way handshake at the point \n");
+			comm_socket_fd = accept(master_sock_tcp_fd, (struct sockaddr *) &client_addr, &addr_len);
+			if(comm_socket_fd < 0)
+			{
+				printf("accept error : errno - %d\n", errno);
+				exit(0);
+			}
+			
+			printf("Connection accepted from client : %s %u\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+			
+			while(1)
+			{
+				printf("Server ready to service client msgs \n");
+				memset(data_buffer, 0, sizeof(data_buffer));
+				
+				sent_recv_bytes = recvfrom(comm_socket_fd, (char *) data_buffer, sizeof(data_buffer), 0, 
+											(struct sockaddr*)&client_addr, &addr_len);
+				
+				printf("Server recvd %d bytes from client %s:%u\n", sent_recv_bytes,
+							inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+				
+				if(sent_recv_bytes == 0) 
+				{
+					close(comm_socket_fd);
+					break;
+				}
+				
+				test_struct_t *client_data = (test_struct_t *) data_buffer;
+				
+				if(client_data->a == 0 && client_data->b == 0)
+				{
+					close(comm_socket_fd);
+					printf("Server closes connection with client : %s: %u\n",
+								inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+								
+					break;
+					
+				}
+				
+				result_struct_t result;
+				result.c = client_data->a + client_data->b;
+				
+				sent_recv_bytes  = sendto(comm_socket_fd, (char *) &result, sizeof(result_struct_t), 0,
+										(struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+				
+				printf("Server sent %d bytes in reply to client\n", sent_recv_bytes);
+			}
+		}
+	}
+	
 }
 
 
